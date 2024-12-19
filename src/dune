@@ -1,0 +1,27 @@
+(rule
+ (targets lexer.ml)
+ (deps lexer.mll)
+ (action
+  (progn
+   (run rm -f lexer.ml)
+   (run ocamllex %{deps})
+   (run chmod -w lexer.ml)))
+ (mode
+  (promote (until-clean))))
+
+(rule
+ (targets parser.ml parser.mli)
+ (deps parser.mly)
+ (action
+  (progn
+   (run rm -f parser.ml parser.mli)
+   (run ocamlyacc -v %{deps})
+   (run chmod -w parser.ml parser.mli)))
+ (mode
+  (promote (until-clean))))
+
+(executable
+ (name main)
+ (public_name my_main)
+ (modules main core support syntax lexer parser)
+ (libraries llvm))

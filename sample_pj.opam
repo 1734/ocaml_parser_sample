@@ -1,0 +1,14 @@
+opam-version: "2.0"
+name: "sample_pj"
+maintainer: "your_email@example.com"
+authors: "Your Name"
+license: "MIT"
+homepage: "https://example.com"
+bug-reports: "https://example.com/issues"
+depends: [
+  "dune" {>= "3.17"}
+  "llvm"
+]
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]

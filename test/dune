@@ -1,0 +1,8 @@
+(test
+ (name test_main)
+ (modules test_main)
+ (libraries alcotest) ; 使用 Alcotest 或其他测试框架
+ (deps
+  (:main ../_build/default/src/main.exe)))
+
+; 依赖 src/main.exe
