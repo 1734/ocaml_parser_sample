@@ -16,6 +16,13 @@ let errf f =
   open_hvbox 0; f(); print_cut(); close_box(); print_newline();
   raise (Exit 1)
 
+let infoToString =
+    function
+      FI(f, l, c) ->
+        f ^ ":" ^ string_of_int l ^ "." ^ string_of_int c ^ ":"
+    | UNKNOWN ->
+        "<Unknown file and line>:"
+
 let printInfo =
   (* In the text of the book, file positions in error messages are replaced
      with the string "Error:" *)

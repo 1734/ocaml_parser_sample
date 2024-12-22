@@ -9,7 +9,6 @@ open Format
 open Support.Pervasive
 open Support.Error
 open Syntax
-open Core
 
 let searchpath = ref [""]
 
@@ -43,43 +42,15 @@ let parseFile inFile =
   let pi = openfile inFile
   in let lexbuf = Lexer.create inFile pi
   in let result =
-    try Parser.toplevel Lexer.main lexbuf with Parsing.Parse_error -> 
+    try Parser.start Lexer.main lexbuf with Parsing.Parse_error -> 
     error (Lexer.info lexbuf) "Parse error"
 in
   Parsing.clear_parser(); close_in pi; result
 
-let alreadyImported = ref ([] : string list)
+let process_file f ctx =
+    let fun_defs,_ = parseFile f ctx in
+    List.iter print_a_function_def fun_defs
 
-let rec process_file f ctx =
-  if List.mem f (!alreadyImported) then
-    ctx
-  else (
-    alreadyImported := f :: !alreadyImported;
-    let cmds,_ = parseFile f ctx in
-    let g ctx c =  
-      open_hvbox 0;
-      let results = process_command ctx c in
-      print_flush();
-      results
-    in
-      List.fold_left g ctx cmds)
-
-and process_command ctx cmd = match cmd with
-    Import(f) -> 
-      process_file f ctx
-  | Eval(fi,t) -> 
-      (* let t' = eval ctx t in
-      printtm_ATerm true ctx t';  *)
-      (* Core.printTerm ctx t 0; *)
-      printtm_ATerm true ctx t;
-      force_newline();
-      ctx
-  | Bind(fi,x,bind) -> 
-      
-      let bind' = evalbinding ctx bind in
-      pr x; pr " "; prbinding ctx bind; force_newline();
-      addbinding ctx x bind'
-  
 let main () = 
   let inFile = parseArgs() in
   let _ = process_file inFile emptycontext in

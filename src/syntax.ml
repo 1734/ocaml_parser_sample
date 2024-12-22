@@ -5,154 +5,122 @@ open Support.Pervasive
 (* ---------------------------------------------------------------------- *)
 (* Datatypes *)
 
-type term =
-    TmString of info * string
-  | TmVar of info * int * int
-  | TmTrue of info
-  | TmFalse of info
-  | TmIf of info * term * term * term
-  | TmLet of info * string * term * term
-  | TmRecord of info * (string * term) list
-  | TmProj of info * term * string
-  | TmAbs of info * string * term
-  | TmApp of info * term * term
-  | TmZero of info
-  | TmSucc of info * term
-  | TmPred of info * term
-  | TmIsZero of info * term
-  | TmFloat of info * float
-  | TmTimesfloat of info * term * term
+type a_basic_type = 
+  | A_int_type of info
+  | A_bool_type of info
 
-type binding =
-    NameBind 
-  | TmAbbBind of term
+type a_symbol_type =
+  | A_basic_type of a_basic_type
+  | A_function_type of info
 
-type context = (string * binding) list
+let getBasicTypeInfo t = match t with
+  | A_int_type(info) -> info
+  | A_bool_type(info) -> info
 
-type command =
-    Import of string
-  | Eval of info * term
-  | Bind of info * string * binding
+let getSymbolTypeInfo t = match t with
+  | A_basic_type(basic_type) -> getBasicTypeInfo basic_type
+  | A_function_type(info) -> info
+
+type a_symbol_decl = { info : info; name : string; ptype : a_symbol_type }
+
+type a_variable_reference = { info : info; refered_symbol : a_symbol_decl }
+
+type a_binary_arithmetic_op = 
+  | A_plus of info
+  | A_sub of info
+  | A_mul of info
+  | A_div of info
+
+let getBinOpInfo t = match t with
+  | A_plus(info) -> info
+  | A_sub(info) -> info
+  | A_mul(info) -> info
+  | A_div(info) -> info
+
+type a_arithmetic_expression =
+  | A_binary_arithmetic_expression of { info : info; op : a_binary_arithmetic_op; left : a_arithmetic_expression; right : a_arithmetic_expression }
+  | A_interger_constant of { info : info; value : int }
+  | A_variable_reference of a_variable_reference
+
+type a_relation_op = 
+  | A_eqeq of info
+  | A_neq of info
+  | A_lt of info
+  | A_gt of info
+  | A_le of info
+  | A_ge of info
+
+let getRelOpInfo t = match t with
+  | A_eqeq(info) -> info
+  | A_neq(info) -> info
+  | A_lt(info) -> info
+  | A_gt(info) -> info
+  | A_le(info) -> info
+  | A_ge(info) -> info
+
+type a_boolean_expression =
+  | A_or_boolean_expression of { info : info; left : a_boolean_expression; right : a_boolean_expression }
+  | A_and_boolean_expression of { info : info; left : a_boolean_expression; right : a_boolean_expression }
+  | A_not_boolean_expression of { info : info; expr : a_boolean_expression }
+  | A_relation_expression of { info : info; op: a_relation_op; left : a_arithmetic_expression; right : a_arithmetic_expression }
+  | A_bool_constant of { info : info; value : bool }
+
+type a_expression =
+  | A_boolean_expression of a_boolean_expression
+  | A_arithmetic_expression of a_arithmetic_expression
+
+type a_statement =
+  | A_variable_declaration_statement of { info : info; declared_symbol : a_symbol_decl; init : a_expression option }
+  | A_assignment_statement of { info : info; assigned_symbol : a_variable_reference; value : a_expression }
+  | A_expression_statement of a_expression
+  | A_while_loop_statement of { info : info; condition : a_boolean_expression; body : a_block }
+  | A_if_statement of { info : info; condition : a_boolean_expression; then_body : a_block; else_body : a_block option }
+  | A_block_statement of a_block
+  | A_return_statement of { info : info; value : a_expression option }
+
+and a_block = { info : info; statements: a_statement list }
+
+type a_parameter = { info : info; declared_symbol : a_symbol_decl }
+
+type a_function_def = { info : info; name : string; returntype : a_basic_type; params : a_parameter list; body : a_block }
+
+(* ---------------------------------------------------------------------- *)
+(* Extracting file info *)
 
 (* ---------------------------------------------------------------------- *)
 (* Context management *)
 
+type scope = a_symbol_decl list
+
+type context = scope list
+
+let push_scope (s : context) : context = [] :: s
+
+let pop_scope (s : context) : context = match s with
+  | [] -> failwith "Error: Cannot pop from an empty stack"
+  | _ :: rest -> rest
+
+let add_symbol (ctx : context) (sym : a_symbol_decl) : context = match ctx with
+  | [] -> failwith "Error: Cannot add symbol to an empty context"
+  | current_scope :: rest -> 
+    let result = 
+      try Some(List.find (fun (sym1 : a_symbol_decl) -> sym1.name = sym.name) current_scope) 
+      with Not_found -> None 
+    in match result with
+    | Some(existing_sym) ->
+      failwith ("Error: Duplicated symbol name: " ^ (infoToString sym.info) ^ sym.name ^
+            ", already declared in" ^ (infoToString existing_sym.info))
+    | None -> (sym :: current_scope) :: rest
+
+let rec find_symbol (ctx : context) (name : string) : a_symbol_decl option = match ctx with
+  | [] -> None
+  | current_scope :: rest -> 
+    try Some(List.find (fun (sym : a_symbol_decl) -> sym.name = name) current_scope)
+    with Not_found -> find_symbol rest name
+
 let emptycontext = []
 
 let ctxlength ctx = List.length ctx
-
-let addbinding ctx x bind = (x,bind)::ctx
-
-let addname ctx x = addbinding ctx x NameBind
-
-let rec isnamebound ctx x =
-  match ctx with
-      [] -> false
-    | (y,_)::rest ->
-        if y=x then true
-        else isnamebound rest x
-
-let rec pickfreshname ctx x =
-  if isnamebound ctx x then pickfreshname ctx (x^"'")
-  else ((x,NameBind)::ctx), x
-
-let index2name fi ctx x =
-  try
-    let (xn,_) = List.nth ctx x in
-    xn
-  with Failure _ ->
-    let msg =
-      Printf.sprintf "Variable lookup failure: offset: %d, ctx size: %d" in
-    error fi (msg x (List.length ctx))
-
-let rec name2index fi ctx x =
-  match ctx with
-      [] -> error fi ("Identifier " ^ x ^ " is unbound")
-    | (y,_)::rest ->
-        if y=x then 0
-        else 1 + (name2index fi rest x)
-
-(* ---------------------------------------------------------------------- *)
-(* Shifting *)
-
-let tmmap onvar c t = 
-  let rec walk c t = match t with
-    TmString _ as t -> t
-  | TmVar(fi,x,n) -> onvar fi c x n
-  | TmTrue(fi) as t -> t
-  | TmFalse(fi) as t -> t
-  | TmIf(fi,t1,t2,t3) -> TmIf(fi,walk c t1,walk c t2,walk c t3)
-  | TmLet(fi,x,t1,t2) -> TmLet(fi,x,walk c t1,walk (c+1) t2)
-  | TmProj(fi,t1,l) -> TmProj(fi,walk c t1,l)
-  | TmRecord(fi,fields) -> TmRecord(fi,List.map (fun (li,ti) ->
-                                               (li,walk c ti))
-                                    fields)
-  | TmAbs(fi,x,t2) -> TmAbs(fi,x,walk (c+1) t2)
-  | TmApp(fi,t1,t2) -> TmApp(fi,walk c t1,walk c t2)
-  | TmZero(fi)      -> TmZero(fi)
-  | TmSucc(fi,t1)   -> TmSucc(fi, walk c t1)
-  | TmPred(fi,t1)   -> TmPred(fi, walk c t1)
-  | TmIsZero(fi,t1) -> TmIsZero(fi, walk c t1)
-  | TmFloat _ as t -> t
-  | TmTimesfloat(fi,t1,t2) -> TmTimesfloat(fi, walk c t1, walk c t2)
-  in walk c t
-
-let termShiftAbove d c t =
-  tmmap
-    (fun fi c x n -> if x>=c then TmVar(fi,x+d,n+d) else TmVar(fi,x,n+d))
-    c t
-
-let termShift d t = termShiftAbove d 0 t
-
-let bindingshift d bind =
-  match bind with
-    NameBind -> NameBind
-  | TmAbbBind(t) -> TmAbbBind(termShift d t)
-
-(* ---------------------------------------------------------------------- *)
-(* Substitution *)
-
-let termSubst j s t =
-  tmmap
-    (fun fi c x n -> if x=j+c then termShift c s else TmVar(fi,x,n))
-    0
-    t
-
-let termSubstTop s t = 
-  termShift (-1) (termSubst 0 (termShift 1 s) t)
-
-(* ---------------------------------------------------------------------- *)
-(* Context management (continued) *)
-
-let rec getbinding fi ctx i =
-  try
-    let (_,bind) = List.nth ctx i in
-    bindingshift (i+1) bind 
-  with Failure _ ->
-    let msg =
-      Printf.sprintf "Variable lookup failure: offset: %d, ctx size: %d" in
-    error fi (msg i (List.length ctx))
- 
-(* ---------------------------------------------------------------------- *)
-(* Extracting file info *)
-
-let tmInfo t = match t with
-    TmString(fi,_) -> fi
-  | TmVar(fi,_,_) -> fi
-  | TmTrue(fi) -> fi
-  | TmFalse(fi) -> fi
-  | TmIf(fi,_,_,_) -> fi
-  | TmLet(fi,_,_,_) -> fi
-  | TmProj(fi,_,_) -> fi
-  | TmRecord(fi,_) -> fi
-  | TmAbs(fi,_,_) -> fi
-  | TmApp(fi, _, _) -> fi
-  | TmZero(fi) -> fi
-  | TmSucc(fi,_) -> fi
-  | TmPred(fi,_) -> fi
-  | TmIsZero(fi,_) -> fi
-  | TmFloat(fi,_) -> fi
-  | TmTimesfloat(fi,_,_) -> fi 
 
 (* ---------------------------------------------------------------------- *)
 (* Printing *)
@@ -175,97 +143,197 @@ let obox() = open_vbox 2
 let cbox() = close_box()
 let break() = print_break 0 0
 
-let small t = 
-  match t with
-    TmVar(_,_,_) -> true
-  | _ -> false
+let print_a_basic_type (t : a_basic_type) = match t with
+  | A_int_type(_) -> print_string "int"
+  | A_bool_type(_) -> print_string "bool"
 
-let rec printtm_Term outer ctx t = match t with
-    TmIf(fi, t1, t2, t3) ->
-       obox0();
-       pr "if ";
-       printtm_Term false ctx t1;
-       print_space();
-       pr "then ";
-       printtm_Term false ctx t2;
-       print_space();
-       pr "else ";
-       printtm_Term false ctx t3;
-       cbox()
-  | TmLet(fi, x, t1, t2) ->
-       obox0();
-       pr "let "; pr x; pr " = "; 
-       printtm_Term false ctx t1;
-       print_space(); pr "in"; print_space();
-       printtm_Term false (addname ctx x) t2;
-       cbox()
-  | TmAbs(fi,x,t2) ->
-      (let (ctx',x') = (pickfreshname ctx x) in
-            obox(); pr "lambda "; pr x'; pr ".";
-            if (small t2) && not outer then break() else print_space();
-            printtm_Term outer ctx' t2;
-            cbox())
-  | t -> printtm_AppTerm outer ctx t
+let print_a_symbol_type (t : a_symbol_type) = match t with
+  | A_basic_type(basic_type) -> print_a_basic_type basic_type
+  | A_function_type(_) -> print_string "function"
 
-and printtm_AppTerm outer ctx t = match t with
-    TmApp(fi, t1, t2) ->
-      obox0();
-      printtm_AppTerm false ctx t1;
+let print_a_variable_reference (v : a_variable_reference) = 
+  print_string v.refered_symbol.name
+
+let print_a_binary_arithmetic_op (op : a_binary_arithmetic_op) = match op with
+  | A_plus(_) -> print_string "+"
+  | A_sub(_) -> print_string "-"
+  | A_mul(_) -> print_string "*"
+  | A_div(_) -> print_string "/"
+
+let rec print_a_arithmetic_expression (e : a_arithmetic_expression) = match e with
+  | A_binary_arithmetic_expression({info; op; left; right}) -> 
+    obox0();
+    print_a_binary_arithmetic_op op;
+    print_space();
+    print_a_arithmetic_expression left;
+    print_space();
+    print_a_arithmetic_expression right;
+    cbox();
+    print_space()
+  | A_interger_constant({info;value}) -> print_int value; print_space()
+  | A_variable_reference(v) -> print_a_variable_reference v; print_space()
+
+let print_a_relation_op (op : a_relation_op) = match op with
+  | A_eqeq(_) -> print_string "=="
+  | A_neq(_) -> print_string "!="
+  | A_lt(_) -> print_string "<"
+  | A_gt(_) -> print_string ">"
+  | A_le(_) -> print_string "<="
+  | A_ge(_) -> print_string ">="
+
+let rec print_a_boolean_expression (e : a_boolean_expression) = match e with
+  | A_or_boolean_expression({info; left; right}) -> 
+    print_space();
+    print_string "||";
+    obox0();
+    print_space();
+    print_a_boolean_expression left;
+    print_space();
+    print_a_boolean_expression right;
+    cbox();
+  | A_and_boolean_expression({info; left; right}) -> 
+    print_space();
+    print_string "&&";
+    obox0();
+    print_space();
+    print_a_boolean_expression left;
+    print_space();
+    print_a_boolean_expression right;
+    cbox();
+  | A_not_boolean_expression({info; expr}) -> 
+    print_space();
+    print_string "!";
+    obox0();
+    print_space();
+    print_a_boolean_expression expr;
+    cbox();
+  | A_relation_expression({info; op; left; right}) -> 
+    print_space();
+    print_a_arithmetic_expression left;
+    obox0();
+    print_space();
+    print_a_relation_op op;
+    print_space();
+    print_a_arithmetic_expression right;
+    cbox();
+  | A_bool_constant({info; value}) -> print_space(); print_string (if value then "true" else "false")
+
+let print_a_expression (e : a_expression) = match e with
+  | A_boolean_expression(expr) -> print_a_boolean_expression expr
+  | A_arithmetic_expression(expr) -> print_a_arithmetic_expression expr
+
+let rec print_a_statement (s : a_statement) = match s with
+  | A_variable_declaration_statement({info; declared_symbol; init}) -> 
+    print_space();
+    print_string "variable declaration statement: ";
+    obox0();
+    print_space();
+    print_string declared_symbol.name;
+    print_string " : ";
+    print_a_symbol_type declared_symbol.ptype;
+    (match init with
+    | Some(expr) -> 
       print_space();
-      printtm_ATerm false ctx t2;
+      print_string "init:";
+      obox0();
+      print_a_expression expr;
+      cbox();
+    | None -> ());
+    cbox();
+  | A_assignment_statement({info; assigned_symbol; value}) -> 
+    print_space();
+    print_string "assignment statement: ";
+    obox0();
+    print_space();
+    print_a_variable_reference assigned_symbol;
+    print_space();
+    print_string "=";
+    obox0();
+    print_a_expression value;
+    cbox();
+    cbox();
+  | A_expression_statement(expr) -> 
+    print_space();
+    print_string "expression statement: ";
+    obox0();
+    print_a_expression expr;
+    cbox();
+  | A_while_loop_statement({info; condition; body}) -> 
+    print_space();
+    print_string "while loop statement:";
+    obox0();
+    print_space();
+    print_string "condition:";
+    obox0();
+    print_a_boolean_expression condition;
+    cbox();
+    print_space();
+    print_string "body:";
+    obox0();
+    print_a_block body;
+    cbox()
+  | A_if_statement({info; condition; then_body; else_body}) -> 
+    print_space();
+    print_string "if statement:";
+    obox0();
+    print_space();
+    print_string "condition:";
+    obox0();
+    print_a_boolean_expression condition;
+    cbox();
+    print_space();
+    print_string "then:";
+    obox0();
+    print_a_block then_body;
+    cbox();
+    (match else_body with
+    | Some(else_body) ->
+      print_space();
+      print_string "else";
+      obox0();
+      print_a_block else_body;
       cbox()
-  | TmPred(_,t1) ->
-      obox(); pr "pred "; print_space();printtm_ATerm false ctx t1; cbox()
-  | TmIsZero(_,t1) ->
-      obox(); pr "iszero "; print_space();printtm_ATerm false ctx t1; cbox()
-  | TmTimesfloat(_,t1,t2) ->
-       obox(); pr "timesfloat "; print_space();printtm_ATerm false ctx t2; 
-       pr " "; printtm_ATerm false ctx t2; cbox()
-  | t -> printtm_PathTerm outer ctx t
+    | None -> ());
+    cbox()
+  | A_block_statement(block) -> print_a_block block
+  | A_return_statement({info; value}) -> 
+    print_space();
+    print_string "return statement:";
+    (match value with
+    | Some(expr) -> 
+      obox0();
+      print_a_expression expr;
+      cbox()
+    | None -> ());
 
-and printtm_PathTerm outer ctx t = match t with
-    TmProj(_, t1, l) ->
-      printtm_ATerm false ctx t1; pr "."; pr l
-  | t -> printtm_ATerm outer ctx t
+and print_a_block (b : a_block) =
+  print_space();
+  print_string "block:";
+  obox0();
+  List.iter print_a_statement b.statements;
+  cbox()
 
-and printtm_ATerm outer ctx t = match t with
-    TmString(_,s) -> pr ("\"" ^ s ^ "\"")
-  | TmVar(fi,x,n) ->
-      if ctxlength ctx = n then
-        pr (index2name fi ctx x)
-      else
-        pr ("[bad index: " ^ (string_of_int x) ^ "/" ^ (string_of_int n)
-            ^ " in {"
-            ^ (List.fold_left (fun s (x,_) -> s ^ " " ^ x) "" ctx)
-            ^ " }]")
-  | TmTrue(_) -> pr "true"
-  | TmFalse(_) -> pr "false"
-  | TmRecord(fi, fields) ->
-       let pf i (li,ti) =
-         if (li <> ((string_of_int i))) then (pr li; pr "="); 
-         printtm_Term false ctx ti 
-       in let rec p i l = match l with
-           [] -> ()
-         | [f] -> pf i f
-         | f::rest ->
-             pf i f; pr","; if outer then print_space() else break(); 
-             p (i+1) rest
-       in pr "{"; open_hovbox 0; p 1 fields; pr "}"; cbox()
-  | TmZero(fi) ->
-       pr "0"
-  | TmSucc(_,t1) ->
-     let rec f n t = match t with
-         TmZero(_) -> pr (string_of_int n)
-       | TmSucc(_,s) -> f (n+1) s
-       | _ -> (obox(); pr "(succ "; print_space();printtm_ATerm false ctx t1; pr ")";cbox())
-     in f 1 t1
-  | TmFloat(_,s) -> pr (string_of_float s)
-  | t -> pr "("; printtm_Term outer ctx t; pr ")"
+let print_a_parameter (p : a_parameter) =
+  print_space();
+  print_string "parameter: ";
+  obox0();
+  print_space();
+  print_string p.declared_symbol.name;
+  print_string " : ";
+  print_a_symbol_type p.declared_symbol.ptype;
+  cbox()
 
-let printtm ctx t = printtm_Term true ctx t 
-
-let prbinding ctx b = match b with
-    NameBind -> ()
-  | TmAbbBind(t) -> pr "= "; printtm ctx t 
-
-
+let print_a_function_def (f : a_function_def) =
+  print_space();
+  print_string "function definition: ";
+  obox0();
+  print_space();
+  print_string f.name;
+  print_string " : ";
+  print_a_basic_type f.returntype;
+  List.iter print_a_parameter f.params;
+  print_space();
+  print_string "body:";
+  obox0();
+  print_a_block f.body;
+  cbox()

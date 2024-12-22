@@ -23,5 +23,5 @@
 (executable
  (name main)
  (public_name my_main)
- (modules main core support syntax lexer parser)
+ (modules main support syntax lexer parser)
  (libraries llvm))

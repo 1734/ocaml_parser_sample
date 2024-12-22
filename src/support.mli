@@ -28,6 +28,7 @@ module Error : sig
 
   (* Create file position info: filename lineno column *)
   val createInfo : string -> int -> int -> info
+  val infoToString : info -> string
   val printInfo : info -> unit
 
   (* A convenient datatype for a "value with file info."  Used in

@@ -22,65 +22,40 @@ open Syntax
  */
 
 /* Keyword tokens */
-%token <Support.Error.info> IMPORT
+%token <Support.Error.info> INT
+%token <Support.Error.info> BOOL
+%token <Support.Error.info> WHILE
 %token <Support.Error.info> IF
-%token <Support.Error.info> THEN
 %token <Support.Error.info> ELSE
 %token <Support.Error.info> TRUE
 %token <Support.Error.info> FALSE
-%token <Support.Error.info> LET
-%token <Support.Error.info> IN
-%token <Support.Error.info> LAMBDA
-%token <Support.Error.info> SUCC
-%token <Support.Error.info> PRED
-%token <Support.Error.info> ISZERO
-%token <Support.Error.info> TIMESFLOAT
+%token <Support.Error.info> RETURN
 
-/* Identifier and constant value tokens */
-%token <string Support.Error.withinfo> UCID  /* uppercase-initial */
-%token <string Support.Error.withinfo> LCID  /* lowercase/symbolic-initial */
 %token <int Support.Error.withinfo> INTV
-%token <float Support.Error.withinfo> FLOATV
-%token <string Support.Error.withinfo> STRINGV
+%token <string Support.Error.withinfo> IDENTIFIER
 
 /* Symbolic tokens */
-%token <Support.Error.info> APOSTROPHE
-%token <Support.Error.info> DQUOTE
-%token <Support.Error.info> ARROW
-%token <Support.Error.info> BANG
-%token <Support.Error.info> BARGT
-%token <Support.Error.info> BARRCURLY
-%token <Support.Error.info> BARRSQUARE
-%token <Support.Error.info> COLON
-%token <Support.Error.info> COLONCOLON
-%token <Support.Error.info> COLONEQ
-%token <Support.Error.info> COLONHASH
-%token <Support.Error.info> COMMA
-%token <Support.Error.info> DARROW
-%token <Support.Error.info> DDARROW
-%token <Support.Error.info> DOT
 %token <Support.Error.info> EOF
-%token <Support.Error.info> EQ
+%token <Support.Error.info> ASSIGN
+%token <Support.Error.info> NE
 %token <Support.Error.info> EQEQ
-%token <Support.Error.info> EXISTS
+%token <Support.Error.info> NOT
 %token <Support.Error.info> GT
-%token <Support.Error.info> HASH
-%token <Support.Error.info> LCURLY
-%token <Support.Error.info> LCURLYBAR
-%token <Support.Error.info> LEFTARROW
+%token <Support.Error.info> GE
+%token <Support.Error.info> LBRACE
 %token <Support.Error.info> LPAREN
-%token <Support.Error.info> LSQUARE
-%token <Support.Error.info> LSQUAREBAR
 %token <Support.Error.info> LT
-%token <Support.Error.info> RCURLY
+%token <Support.Error.info> LE
+%token <Support.Error.info> RBRACE
 %token <Support.Error.info> RPAREN
-%token <Support.Error.info> RSQUARE
 %token <Support.Error.info> SEMI
-%token <Support.Error.info> SLASH
-%token <Support.Error.info> STAR
-%token <Support.Error.info> TRIANGLE
-%token <Support.Error.info> USCORE
-%token <Support.Error.info> VBAR
+%token <Support.Error.info> COMMA
+%token <Support.Error.info> PLUS
+%token <Support.Error.info> SUB
+%token <Support.Error.info> MUL
+%token <Support.Error.info> DIV
+%token <Support.Error.info> OR
+%token <Support.Error.info> AND
 
 /* ---------------------------------------------------------------------- */
 /* The starting production of the generated parser is the syntactic class
@@ -98,8 +73,16 @@ open Syntax
    
 */
 
-%start toplevel
-%type < Syntax.context -> (Syntax.command list * Syntax.context) > toplevel
+%start start
+%type < Syntax.context -> (Syntax.a_function_def list * Syntax.context) > start
+
+%left OR
+%left AND
+%right NOT
+%left EQEQ NE LT LE GT GE
+%left PLUS SUB
+%left MUL DIV
+
 %%
 
 /* ---------------------------------------------------------------------- */
@@ -107,117 +90,132 @@ open Syntax
 
 /* The top level of a file is a sequence of commands, each terminated
    by a semicolon. */
-toplevel :
-    EOF
-      { fun ctx -> [],ctx }
-  | Command SEMI toplevel
-      { fun ctx ->
-          let cmd,ctx = $1 ctx in
-          let cmds,ctx = $3 ctx in
-          cmd::cmds,ctx }
 
-/* A top-level command */
-Command :
-    IMPORT STRINGV { fun ctx -> (Import($2.v)),ctx }
-  | Term 
-      { fun ctx -> (let t = $1 ctx in Eval(tmInfo t,t)),ctx }
-  | LCID Binder
-      { fun ctx -> ((Bind($1.i,$1.v,$2 ctx)), addname ctx $1.v) }
+start:
+  | program EOF { fun ctx -> $1 (push_scope ctx) }
 
-/* Right-hand sides of top-level bindings */
-Binder :
-    SLASH
-      { fun ctx -> NameBind }
-  | EQ Term
-      { fun ctx -> TmAbbBind($2 ctx) }
+program:
+  | /* empty */ { fun ctx -> [], ctx}
+  | function_def program { fun ctx -> let (f,ctx') = $1 ctx in let (p,ctx'') = $2 ctx' in (f::p, ctx'') }
 
-Term :
-    AppTerm
-      { $1 }
-  | IF Term THEN Term ELSE Term
-      { fun ctx -> TmIf($1, $2 ctx, $4 ctx, $6 ctx) }
-  | LET LCID EQ Term IN Term
-      { fun ctx -> TmLet($1, $2.v, $4 ctx, $6 (addname ctx $2.v)) }
-  | LET USCORE EQ Term IN Term
-      { fun ctx -> TmLet($1, "_", $4 ctx, $6 (addname ctx "_")) }
-  | LAMBDA LCID DOT Term 
-      { fun ctx ->
-          let ctx1 = addname ctx $2.v in
-          TmAbs($1, $2.v, $4 ctx1) }
-  | LAMBDA USCORE DOT Term 
-      { fun ctx ->
-          let ctx1 = addname ctx "_" in
-          TmAbs($1, "_", $4 ctx1) }
+basic_type:
+  | INT { A_int_type $1 }
+  | BOOL { A_bool_type $1 }
 
-AppTerm :
-    PathTerm
-      { $1 }
-  | AppTerm PathTerm
-      { fun ctx ->
-          let e1 = $1 ctx in
-          let e2 = $2 ctx in
-          TmApp(tmInfo e1,e1,e2) }
-  | SUCC PathTerm
-      { fun ctx -> TmSucc($1, $2 ctx) }
-  | PRED PathTerm
-      { fun ctx -> TmPred($1, $2 ctx) }
-  | ISZERO PathTerm
-      { fun ctx -> TmIsZero($1, $2 ctx) }
-  | TIMESFLOAT PathTerm PathTerm
-      { fun ctx -> TmTimesfloat($1, $2 ctx, $3 ctx) }
+function_def:
+  | basic_type IDENTIFIER LPAREN parameter_list RPAREN function_body_block {
+    fun ctx : (a_function_def * _) ->
+      let sym : a_symbol_decl = { info = getBasicTypeInfo $1; name = $2.v; ptype = A_function_type($2.i) } in
+      let ctx' = add_symbol ctx sym in
+      let (ps, ctx'') = $4 (add_symbol (push_scope ctx') sym) in
+      { info = getBasicTypeInfo $1; name = $2.v; returntype = $1; params = ps; body = $6 ctx'' }, ctx'
+    }
 
-PathTerm :
-    PathTerm DOT LCID
-      { fun ctx ->
-          TmProj($2, $1 ctx, $3.v) }
-  | PathTerm DOT INTV
-      { fun ctx ->
-          TmProj($2, $1 ctx, string_of_int $3.v) }
-  | ATerm
-      { $1 }
+parameter_list:
+  | /* empty */ { fun ctx -> [], ctx }
+  | basic_type IDENTIFIER COMMA parameter_list {
+    fun ctx -> 
+      let sym : a_symbol_decl = { info = getBasicTypeInfo $1; name = $2.v; ptype = A_basic_type($1) } in
+      let p : a_parameter = { info = sym.info; declared_symbol = sym } in
+      let ctx' = add_symbol ctx sym in
+      let (ps, ctx'') = $4 ctx' in
+    (p :: ps, ctx'')
+    }
 
-/* Atomic terms are ones that never require extra parentheses */
-ATerm :
-    LPAREN Term RPAREN  
-      { $2 } 
-  | STRINGV
-      { fun ctx -> TmString($1.i, $1.v) }
-  | LCID 
-      { fun ctx ->
-          TmVar($1.i, name2index $1.i ctx $1.v, ctxlength ctx) }
-  | TRUE
-      { fun ctx -> TmTrue($1) }
-  | FALSE
-      { fun ctx -> TmFalse($1) }
-  | LCURLY Fields RCURLY
-      { fun ctx ->
-          TmRecord($1, $2 ctx 1) }
-  | INTV
-      { fun ctx ->
-          let rec f n = match n with
-              0 -> TmZero($1.i)
-            | n -> TmSucc($1.i, f (n-1))
-          in f $1.v }
-  | FLOATV
-      { fun ctx -> TmFloat($1.i, $1.v) }
+block:
+  | LBRACE statement_list RBRACE { fun ctx : a_block -> match ($2 (push_scope ctx)) with (ss, _) -> { info = $1; statements = ss } }
 
-Fields :
-    /* empty */
-      { fun ctx i -> [] }
-  | NEFields
-      { $1 }
+function_body_block:
+  | LBRACE statement_list RBRACE { fun ctx : a_block -> match ($2 ctx) with (ss, _) -> { info = $1; statements = ss } }
 
-NEFields :
-    Field
-      { fun ctx i -> [$1 ctx i] }
-  | Field COMMA NEFields
-      { fun ctx i -> ($1 ctx i) :: ($3 ctx (i+1)) }
+statement_list:
+  | /* empty */ { fun ctx -> [], ctx }
+  | statement statement_list { fun ctx -> let (s, ctx') = $1 ctx in let (ss, ctx'') = $2 ctx' in (s::ss, ctx'') }
 
-Field :
-    LCID EQ Term
-      { fun ctx i -> ($1.v, $3 ctx) }
-  | Term
-      { fun ctx i -> (string_of_int i, $1 ctx) }
+statement:
+  | variable_declaration_statement { fun ctx -> $1 ctx }
+  | assignment_statement { fun ctx -> $1 ctx, ctx }
+  | expression_statement { fun ctx -> $1 ctx, ctx }
+  | while_loop_statement { fun ctx -> $1 ctx, ctx }
+  | if_statement { fun ctx -> $1 ctx, ctx }
+  | block { fun ctx -> A_block_statement($1 ctx), ctx }
+  | return_statement { fun ctx -> $1 ctx, ctx }
 
+variable_declaration_statement:
+  | basic_type IDENTIFIER opt_init SEMI {
+    fun ctx : (a_statement * _) ->
+      let sym : a_symbol_decl = { info = getBasicTypeInfo $1; name = $2.v; ptype = A_basic_type($1) } in
+      let ctx' = add_symbol ctx sym in
+      A_variable_declaration_statement { info = getBasicTypeInfo $1; declared_symbol = sym; init = $3 ctx }, ctx'
+    }
+
+opt_init:
+  | ASSIGN expression { fun ctx -> Some($2 ctx) }
+  | /* empty */ { fun ctx -> None }
+
+variable_reference:
+  | IDENTIFIER { fun ctx : a_variable_reference ->
+    let sym : a_symbol_decl option = find_symbol ctx $1.v in
+    match sym with
+    | Some(s) -> ({ info = $1.i; refered_symbol = s } : a_variable_reference)
+    | None -> failwith (infoToString $1.i ^ "Variable " ^ $1.v ^ " not declared")
+  }
+
+assignment_statement:
+  | variable_reference ASSIGN expression SEMI { fun ctx ->
+    let vr : a_variable_reference = $1 ctx in
+    A_assignment_statement { info = vr.info; assigned_symbol = vr; value = $3 ctx } }
+
+expression_statement:
+  | expression SEMI { fun ctx -> A_expression_statement($1 ctx) }
+
+expression:
+  | boolean_expression { fun ctx -> A_boolean_expression($1 ctx) }
+  | arithmetic_expression { fun ctx -> A_arithmetic_expression($1 ctx) }
+
+boolean_expression:
+  | boolean_expression OR boolean_expression { fun ctx -> A_or_boolean_expression { info = $2; left = $1 ctx; right = $3 ctx } }
+  | boolean_expression AND boolean_expression { fun ctx -> A_and_boolean_expression { info = $2; left = $1 ctx; right = $3 ctx } }
+  | NOT boolean_expression { fun ctx -> A_not_boolean_expression { info = $1; expr = $2 ctx } }
+  | arithmetic_expression rel_op arithmetic_expression { fun ctx -> A_relation_expression { info = getRelOpInfo $2; op = $2; left = $1 ctx; right = $3 ctx } }
+  | LPAREN boolean_expression RPAREN { fun ctx -> $2 ctx }
+  | TRUE { fun ctx -> A_bool_constant { info = $1; value = true } }
+  | FALSE { fun ctx -> A_bool_constant { info = $1; value = false } }
+
+rel_op:
+  | EQEQ { A_eqeq $1 }
+  | NE { A_neq $1 }
+  | LT { A_lt $1 }
+  | GT { A_gt $1 }
+  | LE { A_le $1 }
+  | GE { A_ge $1 }
+
+arithmetic_expression:
+  | arithmetic_expression PLUS arithmetic_expression { fun ctx -> A_binary_arithmetic_expression { info = $2; op = A_plus $2; left = $1 ctx; right = $3 ctx } }
+  | arithmetic_expression SUB arithmetic_expression { fun ctx -> A_binary_arithmetic_expression { info = $2; op = A_sub $2; left = $1 ctx; right = $3 ctx } }
+  | arithmetic_expression MUL arithmetic_expression { fun ctx -> A_binary_arithmetic_expression { info = $2; op = A_mul $2; left = $1 ctx; right = $3 ctx } }
+  | arithmetic_expression DIV arithmetic_expression { fun ctx -> A_binary_arithmetic_expression { info = $2; op = A_div $2; left = $1 ctx; right = $3 ctx } }
+  | LPAREN arithmetic_expression RPAREN { fun ctx -> $2 ctx }
+  | INTV { fun ctx -> A_interger_constant { info = $1.i; value = $1.v } }
+  | variable_reference { fun ctx -> A_variable_reference($1 ctx) }
+
+while_loop_statement:
+  | WHILE LPAREN boolean_expression RPAREN block { fun ctx ->
+      A_while_loop_statement { info = $1; condition = $3 ctx; body = $5 ctx } }
+
+if_statement:
+  | IF LPAREN boolean_expression RPAREN block else_part {
+      fun ctx -> A_if_statement { info = $1; condition = $3 ctx; then_body = $5 ctx; else_body = $6 ctx } }
+
+else_part:
+  | /* empty */ { fun ctx -> None }
+  | ELSE block { fun ctx -> Some($2 ctx) }
+
+return_statement:
+  | RETURN return_expression SEMI { fun ctx -> A_return_statement { info = $1; value = $2 ctx } }
+
+return_expression:
+  | /* empty */ { fun ctx -> None }
+  | expression { fun ctx -> Some($1 ctx) }
 
 /*   */
