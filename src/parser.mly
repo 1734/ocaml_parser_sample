@@ -113,6 +113,10 @@ function_def:
 
 parameter_list:
   | /* empty */ { fun ctx -> [], ctx }
+  | basic_type IDENTIFIER { fun ctx -> 
+    let sym : a_symbol_decl = { info = getBasicTypeInfo $1; name = $2.v; ptype = A_basic_type($1) } in
+    let p : a_parameter = { info = sym.info; declared_symbol = sym } in
+    (p :: [], add_symbol ctx sym) }
   | basic_type IDENTIFIER COMMA parameter_list {
     fun ctx -> 
       let sym : a_symbol_decl = { info = getBasicTypeInfo $1; name = $2.v; ptype = A_basic_type($1) } in
@@ -158,7 +162,7 @@ variable_reference:
     let sym : a_symbol_decl option = find_symbol ctx $1.v in
     match sym with
     | Some(s) -> ({ info = $1.i; refered_symbol = s } : a_variable_reference)
-    | None -> failwith (infoToString $1.i ^ "Variable " ^ $1.v ^ " not declared")
+    | None -> failwith (infoToString $1.i ^ " Variable " ^ $1.v ^ " not declared")
   }
 
 assignment_statement:

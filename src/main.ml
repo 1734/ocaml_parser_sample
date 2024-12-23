@@ -49,7 +49,7 @@ in
 
 let process_file f ctx =
     let fun_defs,_ = parseFile f ctx in
-    List.iter print_a_function_def fun_defs
+    List.iter print_a_function_def fun_defs; print_newline()
 
 let main () = 
   let inFile = parseArgs() in

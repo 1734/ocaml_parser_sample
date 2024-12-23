@@ -162,16 +162,14 @@ let print_a_binary_arithmetic_op (op : a_binary_arithmetic_op) = match op with
 
 let rec print_a_arithmetic_expression (e : a_arithmetic_expression) = match e with
   | A_binary_arithmetic_expression({info; op; left; right}) -> 
+    print_space();
     obox0();
     print_a_binary_arithmetic_op op;
-    print_space();
     print_a_arithmetic_expression left;
-    print_space();
     print_a_arithmetic_expression right;
-    cbox();
-    print_space()
-  | A_interger_constant({info;value}) -> print_int value; print_space()
-  | A_variable_reference(v) -> print_a_variable_reference v; print_space()
+    cbox()
+  | A_interger_constant({info;value}) -> print_space(); print_int value
+  | A_variable_reference(v) -> print_space(); print_a_variable_reference v
 
 let print_a_relation_op (op : a_relation_op) = match op with
   | A_eqeq(_) -> print_string "=="
@@ -184,36 +182,30 @@ let print_a_relation_op (op : a_relation_op) = match op with
 let rec print_a_boolean_expression (e : a_boolean_expression) = match e with
   | A_or_boolean_expression({info; left; right}) -> 
     print_space();
-    print_string "||";
     obox0();
-    print_space();
+    print_string "||";
     print_a_boolean_expression left;
-    print_space();
     print_a_boolean_expression right;
     cbox();
   | A_and_boolean_expression({info; left; right}) -> 
     print_space();
-    print_string "&&";
     obox0();
-    print_space();
+    print_string "&&";
     print_a_boolean_expression left;
-    print_space();
     print_a_boolean_expression right;
     cbox();
   | A_not_boolean_expression({info; expr}) -> 
     print_space();
-    print_string "!";
     obox0();
+    print_string "!";
     print_space();
     print_a_boolean_expression expr;
     cbox();
   | A_relation_expression({info; op; left; right}) -> 
     print_space();
-    print_a_arithmetic_expression left;
     obox0();
-    print_space();
     print_a_relation_op op;
-    print_space();
+    print_a_arithmetic_expression left;
     print_a_arithmetic_expression right;
     cbox();
   | A_bool_constant({info; value}) -> print_space(); print_string (if value then "true" else "false")
@@ -225,72 +217,73 @@ let print_a_expression (e : a_expression) = match e with
 let rec print_a_statement (s : a_statement) = match s with
   | A_variable_declaration_statement({info; declared_symbol; init}) -> 
     print_space();
-    print_string "variable declaration statement: ";
     obox0();
+    print_string "variable declaration statement:";
     print_space();
     print_string declared_symbol.name;
-    print_string " : ";
+    print_string " of type ";
     print_a_symbol_type declared_symbol.ptype;
     (match init with
     | Some(expr) -> 
       print_space();
-      print_string "init:";
       obox0();
+      print_string "initiation:";
       print_a_expression expr;
       cbox();
     | None -> ());
     cbox();
   | A_assignment_statement({info; assigned_symbol; value}) -> 
     print_space();
-    print_string "assignment statement: ";
     obox0();
-    print_space();
-    print_a_variable_reference assigned_symbol;
+    print_string "assignment statement:";
     print_space();
     print_string "=";
     obox0();
+    print_space();
+    print_a_variable_reference assigned_symbol;
     print_a_expression value;
     cbox();
     cbox();
   | A_expression_statement(expr) -> 
     print_space();
-    print_string "expression statement: ";
     obox0();
+    print_string "expression statement:";
     print_a_expression expr;
     cbox();
   | A_while_loop_statement({info; condition; body}) -> 
     print_space();
+    obox0();
     print_string "while loop statement:";
-    obox0();
     print_space();
-    print_string "condition:";
     obox0();
+    print_string "condition:";
     print_a_boolean_expression condition;
     cbox();
     print_space();
-    print_string "body:";
     obox0();
+    print_string "body:";
     print_a_block body;
+    cbox();
     cbox()
   | A_if_statement({info; condition; then_body; else_body}) -> 
     print_space();
+    obox0();
     print_string "if statement:";
-    obox0();
     print_space();
-    print_string "condition:";
     obox0();
+    print_string "condition:";
     print_a_boolean_expression condition;
     cbox();
     print_space();
-    print_string "then:";
     obox0();
+    print_string "then:";
     print_a_block then_body;
     cbox();
     (match else_body with
     | Some(else_body) ->
       print_space();
-      print_string "else";
       obox0();
+      print_string "else";
       print_a_block else_body;
       cbox()
     | None -> ());
@@ -298,42 +291,51 @@ let rec print_a_statement (s : a_statement) = match s with
   | A_block_statement(block) -> print_a_block block
   | A_return_statement({info; value}) -> 
     print_space();
+    obox0();
     print_string "return statement:";
     (match value with
     | Some(expr) -> 
-      obox0();
-      print_a_expression expr;
-      cbox()
+      print_a_expression expr
     | None -> ());
+    cbox()
 
 and print_a_block (b : a_block) =
   print_space();
-  print_string "block:";
   obox0();
+  print_string "block:";
   List.iter print_a_statement b.statements;
   cbox()
 
 let print_a_parameter (p : a_parameter) =
   print_space();
-  print_string "parameter: ";
   obox0();
+  print_string "parameter:";
   print_space();
   print_string p.declared_symbol.name;
-  print_string " : ";
+  print_string " of type ";
   print_a_symbol_type p.declared_symbol.ptype;
   cbox()
 
 let print_a_function_def (f : a_function_def) =
   print_space();
-  print_string "function definition: ";
   obox0();
+  print_string ("function definition: " ^ (infoToString f.info));
   print_space();
-  print_string f.name;
-  print_string " : ";
+  print_string ("function name: " ^ f.name);
+  print_space();
+  print_string "return type: ";
   print_a_basic_type f.returntype;
-  List.iter print_a_parameter f.params;
   print_space();
-  print_string "body:";
   obox0();
+  print_string "parameter list:";
+  if List.length f.params = 0 then
+    print_string " (empty)"
+  else
+  List.iter print_a_parameter f.params;
+  cbox();
+  print_space();
+  obox0();
+  print_string "body:";
   print_a_block f.body;
+  cbox();
   cbox()

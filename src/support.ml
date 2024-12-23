@@ -19,7 +19,7 @@ let errf f =
 let infoToString =
     function
       FI(f, l, c) ->
-        f ^ ":" ^ string_of_int l ^ "." ^ string_of_int c ^ ":"
+        f ^ ":" ^ string_of_int l ^ ":" ^ string_of_int c ^ ":"
     | UNKNOWN ->
         "<Unknown file and line>:"
 

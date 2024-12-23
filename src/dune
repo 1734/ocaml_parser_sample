@@ -10,7 +10,7 @@
   (promote (until-clean))))
 
 (rule
- (targets parser.ml parser.mli)
+ (targets parser.ml parser.mli parser.output)
  (deps parser.mly)
  (action
   (progn

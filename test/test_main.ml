@@ -1,6 +1,6 @@
 let test_main_function () =
   (* 假设你的 main.exe 提供了某种功能供测试 *)
-  let result = Sys.command "../src/main.exe ../../../test/test.f" in
+  let result = Sys.command "../src/main.exe ../../../test/test.cpp" in
   Alcotest.(check int) "Expect 0" 0 result
 
 let () =
