@@ -19,7 +19,7 @@ let reservedWords = [
   ("true", fun i -> Parser.TRUE i);
   ("false", fun i -> Parser.FALSE i);
   ("return", fun i -> Parser.RETURN i);
-  
+
   (* Symbols *)
   ("==", fun i -> Parser.EQEQ i);
   ("=", fun i -> Parser.ASSIGN i);
@@ -55,7 +55,7 @@ let _ =
 let createID i str =
   try (Hashtbl.find symbolTable str) i
   with _ ->
-       Parser.IDENTIFIER {i=i;v=str}
+    Parser.IDENTIFIER {i=i;v=str}
 
 let lineno   = ref 1
 and depth    = ref 0

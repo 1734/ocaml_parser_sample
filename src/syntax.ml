@@ -237,8 +237,8 @@ let rec print_a_statement (s : a_statement) = match s with
     obox0();
     print_string "assignment statement:";
     print_space();
-    print_string "=";
     obox0();
+    print_string "=";
     print_space();
     print_a_variable_reference assigned_symbol;
     print_a_expression value;
