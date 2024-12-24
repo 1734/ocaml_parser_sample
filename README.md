@@ -1,5 +1,12 @@
 ## 简介
 本项目实现了一个类C语言的简单编译器前端，支持变量定义、赋值、运算、条件判断、循环等基本语法。可以打印抽象语法树。
+## 环境
+本项目只支持linux，使用ocaml作为开发语言，需要安装ocaml编译器。安装方式（参考[https://ocaml.org/install#linux_mac_bsd]）：
+```
+$ bash -c "sh <(curl -fsSL https://opam.ocaml.org/install.sh)"
+$ opam init
+$ opam install ocaml-lsp-server odoc ocamlformat utop
+```
 ## 清理
 dune clean
 ## 构建
