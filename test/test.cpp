@@ -1,6 +1,6 @@
-int main(int a, int b) {
+int main() {
   int X = 50;
-  while ((X < 100) || X > 1 && true) {
+  while ((X < 100)) {
     if (X > 85) {
       X = X - 25;
     } else {

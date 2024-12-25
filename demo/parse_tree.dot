@@ -1,0 +1,86 @@
+digraph parseTree {
+    // 让整棵树从上到下 (Top to Bottom)
+    rankdir = TB;
+    // 连线走直角（可选）
+    // splines = ortho;
+
+    // 默认节点形状：方框
+    node [shape=box,style="rounded"];
+
+    // ========== 非叶子节点 (红字) ==========
+    A  [label="variable_declaration_statement", fontcolor=red];
+    B  [label="basic_type",                    fontcolor=red];
+    F  [label="expression",                    fontcolor=red];
+    G  [label="arithmetic_expression",         fontcolor=red];
+    H  [label="arithmetic_expression",         fontcolor=red];
+    H1 [label="variable_reference",            fontcolor=red];
+    G1 [label="arithmetic_expression",         fontcolor=red];
+    L  [label="arithmetic_expression",         fontcolor=red];
+
+    // ========== 叶子节点 (默认字体颜色) ==========
+    C  [label=<INT<BR/><FONT COLOR="green">int</FONT>>];
+    D  [label=<IDENTIFIER<BR/><FONT COLOR="green">var</FONT>>];
+    E  [label=<ASSIGN<BR/><FONT COLOR="green">=</FONT>>];
+    I  [label=<IDENTIFIER<BR/><FONT COLOR="green">input1</FONT>>];
+    J  [label=<PLUS<BR/><FONT COLOR="green">+</FONT>>];
+    M  [label=<INTV<BR/><FONT COLOR="green">12</FONT>>];
+    N  [label=<SUB<BR/><FONT COLOR="green">-</FONT>>];
+    K  [label=<LPAREN<BR/><FONT COLOR="green">(</FONT>>];
+    O  [label=<IDENTIFIER<BR/><FONT COLOR="green">input2</FONT>>];
+    P  [label=<RPAREN<BR/><FONT COLOR="green">)</FONT>>];
+
+    // ========== 树结构关系 (有向边) ==========
+    // 根节点 A 的子节点：B, D, E, F (希望它们顺序为 B->D->E->F)
+    A -> B;
+    A -> D;
+    A -> E;
+    A -> F;
+
+    // B -> C
+    B -> C;
+
+    // F -> G
+    F -> G;
+    // G 的子节点：H, J, G1 (兄弟顺序为 H->J->G1)
+    G -> H;
+    G -> J;
+    G -> G1;
+
+    // H -> H1 -> I
+    H -> H1;
+    H1 -> I;
+
+    // G1 -> K, L, P (兄弟顺序 K->L->P)
+    G1 -> K;
+    G1 -> L;
+    G1 -> P;
+
+    // L -> M, N, O (兄弟顺序 M->N->O)
+    L -> M;
+    L -> N;
+    L -> O;
+
+    // ========== 使用“不可见边”保持兄弟顺序 ==========
+
+    // A 的子节点：B, D, E, F
+    { rank = same; B; D; E; F; }
+    B -> D [style=invis, weight=2];
+    D -> E [style=invis, weight=2];
+    E -> F [style=invis, weight=2];
+
+    // G 的子节点：H, J, G1
+    { rank = same; H; J; G1; }
+    H -> J [style=invis, weight=2];
+    J -> G1 [style=invis, weight=2];
+
+    // G1 的子节点：K, L, P
+    { rank = same; K; L; P; }
+    K -> L [style=invis, weight=2];
+    L -> P [style=invis, weight=2];
+
+    // L 的子节点：M, N, O
+    { rank = same; M; N; O; }
+    M -> N [style=invis, weight=2];
+    N -> O [style=invis, weight=2];
+    
+}
